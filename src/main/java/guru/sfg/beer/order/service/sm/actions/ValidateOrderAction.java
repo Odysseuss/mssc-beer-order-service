@@ -22,7 +22,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ValidateOrderAction implements Action<BeerOrderStatusEnum, BeerOrderEventEnum> {
 
-    private BeerOrderRepository beerOrderRepository;
+    private final BeerOrderRepository beerOrderRepository;
     private final BeerOrderMapper beerOrderMapper;
     private final JmsTemplate jmsTemplate;
 
