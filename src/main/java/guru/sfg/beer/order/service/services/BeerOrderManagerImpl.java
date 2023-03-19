@@ -7,6 +7,7 @@ import guru.sfg.beer.order.service.repositories.BeerOrderRepository;
 import guru.sfg.beer.order.service.sm.BeerOrderStateChangeInterceptor;
 import guru.sfg.brewery.model.BeerOrderDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.statemachine.StateMachine;
@@ -15,9 +16,11 @@ import org.springframework.statemachine.support.DefaultStateMachineContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BeerOrderManagerImpl implements BeerOrderManager {
@@ -39,21 +42,33 @@ public class BeerOrderManagerImpl implements BeerOrderManager {
         return savedBeerOrder;
     }
 
+    @Transactional
     @Override
     public void processValidationResult(UUID beerOrderId, Boolean isValid) {
-        BeerOrder beerOrder = beerOrderRepository.getOne(beerOrderId);
+        log.debug("Process Validation Result for beerOrderId: " + beerOrderId + " Valid? " + isValid);
 
-        if (isValid) {
-            sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.VALIDATION_PASSED);
+        Optional<BeerOrder> beerOrderOptional = beerOrderRepository.findById(beerOrderId);
+        beerOrderOptional.ifPresentOrElse(beerOrder -> {
 
-            // The order is now stale from the previous, so we'll get a fresh order object
-            BeerOrder validatedOrder = beerOrderRepository.findOneById(beerOrderId);
+            if (isValid) {
 
-            sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.ALLOCATE_ORDER);
+                sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.VALIDATION_PASSED);
 
-        } else {
-            sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.VALIDATION_FAILED);
-        }
+                // The order is now stale from the previous, so we'll get a fresh order object
+                Optional<BeerOrder> validatedOrderOptional = beerOrderRepository.findById(beerOrderId);
+                validatedOrderOptional.ifPresentOrElse(validatedOrder -> {
+
+                    sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.ALLOCATE_ORDER);
+
+                }, () -> log.error("Order Not Found. Id: " + beerOrderId));
+
+            } else {
+                sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.VALIDATION_FAILED);
+            }
+
+        }, () -> log.error("Order Not Found. Id: " + beerOrderId));
+
+
 
     }
 
