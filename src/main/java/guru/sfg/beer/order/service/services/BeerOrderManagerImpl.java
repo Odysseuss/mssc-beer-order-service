@@ -54,10 +54,11 @@ public class BeerOrderManagerImpl implements BeerOrderManager {
 
                 sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.VALIDATION_PASSED);
 
+                
                 // The order is now stale from the previous, so we'll get a fresh order object
                 Optional<BeerOrder> validatedOrderOptional = beerOrderRepository.findById(beerOrderId);
                 validatedOrderOptional.ifPresentOrElse(validatedOrder -> {
-
+                    log.debug("Sending Order Event ALLOCATE_ORDER");
                     sendBeerOrderEvent(beerOrder, BeerOrderEventEnum.ALLOCATE_ORDER);
 
                 }, () -> log.error("Order Not Found. Id: " + beerOrderId));
