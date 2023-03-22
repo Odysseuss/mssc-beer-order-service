@@ -76,7 +76,8 @@ class BeerOrderManagerImplIT {
     }
 
     @Test
-    void testNewToAllocated() throws JsonProcessingException, InterruptedException {
+    void testNewToAllocated() throws JsonProcessingException {
+
         BeerDto beerDto = BeerDto.builder()
                         .id(beerId)
                         .upc("12345")
@@ -86,20 +87,27 @@ class BeerOrderManagerImplIT {
                 .willReturn(okJson(objectMapper.writeValueAsString(beerDto))));
 
         BeerOrder beerOrder = createBeerOrder();
-
-        BeerOrder savedBeerOrder = beerOrderManager.newBeerOrder(beerOrder);
+        BeerOrder newBeerOrder = beerOrderManager.newBeerOrder(beerOrder);
 
         await().untilAsserted(() -> {
             BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
             assertEquals(BeerOrderStatusEnum.ALLOCATED, foundOrder.getOrderStatus());
         });
 
-        savedBeerOrder = beerOrderRepository.findById(savedBeerOrder.getId()).get();
+        await().untilAsserted(() -> {
+            BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
+            BeerOrderLine line = foundOrder.getBeerOrderLines().iterator().next();
+            assertEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
 
-        assertNotNull(savedBeerOrder);
-        assertEquals(BeerOrderStatusEnum.ALLOCATED, savedBeerOrder.getOrderStatus());
+        BeerOrder allocatedBeerOrder = beerOrderRepository.findById(newBeerOrder.getId()).get();
 
-        
+        assertNotNull(allocatedBeerOrder);
+        assertEquals(BeerOrderStatusEnum.ALLOCATED, allocatedBeerOrder.getOrderStatus());
+        allocatedBeerOrder.getBeerOrderLines().forEach(line -> {
+            assertEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
+
     }
 
     public BeerOrder createBeerOrder() {
@@ -113,6 +121,7 @@ class BeerOrderManagerImplIT {
                 .orderQuantity(1)
                 .beerOrder(beerOrder)
                 .build());
+        beerOrder.setBeerOrderLines(lines);
 
         return beerOrder;
     }
