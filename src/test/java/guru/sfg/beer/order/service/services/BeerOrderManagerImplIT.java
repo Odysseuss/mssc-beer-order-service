@@ -29,8 +29,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(WireMockExtension.class)
 @SpringBootTest
@@ -128,6 +127,78 @@ class BeerOrderManagerImplIT {
             assertEquals(BeerOrderStatusEnum.VALIDATION_EXCEPTION, foundOrder.getOrderStatus());
         });
 
+
+    }
+
+    @Test
+    void testPartialAllocation() throws JsonProcessingException {
+
+        BeerDto beerDto = BeerDto.builder()
+                .id(beerId)
+                .upc("12345")
+                .build();
+
+        wireMockServer.stubFor(get(BeerServiceImpl.BEER_UPC_PATH_V1 + "12345")
+                .willReturn(okJson(objectMapper.writeValueAsString(beerDto))));
+
+        BeerOrder beerOrder = createBeerOrder();
+        beerOrder.setCustomerRef("inventory-pending");
+        BeerOrder newBeerOrder = beerOrderManager.newBeerOrder(beerOrder);
+
+        await().untilAsserted(() -> {
+            BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
+            assertEquals(BeerOrderStatusEnum.PENDING_INVENTORY, foundOrder.getOrderStatus());
+        });
+
+        await().untilAsserted(() -> {
+            BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
+            BeerOrderLine line = foundOrder.getBeerOrderLines().iterator().next();
+            assertNotEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
+
+        BeerOrder allocatedBeerOrder = beerOrderRepository.findById(newBeerOrder.getId()).get();
+
+        assertNotNull(allocatedBeerOrder);
+        assertEquals(BeerOrderStatusEnum.PENDING_INVENTORY, allocatedBeerOrder.getOrderStatus());
+        allocatedBeerOrder.getBeerOrderLines().forEach(line -> {
+            assertNotEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
+
+    }
+
+    @Test
+    void testAllocationFailure() throws JsonProcessingException {
+
+        BeerDto beerDto = BeerDto.builder()
+                .id(beerId)
+                .upc("12345")
+                .build();
+
+        wireMockServer.stubFor(get(BeerServiceImpl.BEER_UPC_PATH_V1 + "12345")
+                .willReturn(okJson(objectMapper.writeValueAsString(beerDto))));
+
+        BeerOrder beerOrder = createBeerOrder();
+        beerOrder.setCustomerRef("allocation-failed");
+        BeerOrder newBeerOrder = beerOrderManager.newBeerOrder(beerOrder);
+
+        await().untilAsserted(() -> {
+            BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
+            assertEquals(BeerOrderStatusEnum.ALLOCATION_EXCEPTION, foundOrder.getOrderStatus());
+        });
+
+        await().untilAsserted(() -> {
+            BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
+            BeerOrderLine line = foundOrder.getBeerOrderLines().iterator().next();
+            assertNotEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
+
+        BeerOrder allocatedBeerOrder = beerOrderRepository.findById(newBeerOrder.getId()).get();
+
+        assertNotNull(allocatedBeerOrder);
+        assertEquals(BeerOrderStatusEnum.ALLOCATION_EXCEPTION, allocatedBeerOrder.getOrderStatus());
+        allocatedBeerOrder.getBeerOrderLines().forEach(line -> {
+            assertNotEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
 
     }
 
