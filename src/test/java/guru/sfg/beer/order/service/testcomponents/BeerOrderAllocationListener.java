@@ -25,6 +25,10 @@ public class BeerOrderAllocationListener {
         final boolean isPendingInventory = "inventory-pending".equals(allocateOrderRequest.getBeerOrderDto().getCustomerRef());
         final boolean isAllocationError = "allocation-failed".equals(allocateOrderRequest.getBeerOrderDto().getCustomerRef());
 
+        if ("hold-allocation".equals(allocateOrderRequest.getBeerOrderDto().getCustomerRef())) {
+            return;
+        }
+
         allocateOrderRequest.getBeerOrderDto().getBeerOrderLines().forEach(beerOrderLineDto -> {
             int allocatedQuantity = (!isPendingInventory) ? beerOrderLineDto.getOrderQuantity() : beerOrderLineDto.getOrderQuantity() - 1;
             beerOrderLineDto.setQuantityAllocated(allocatedQuantity);
